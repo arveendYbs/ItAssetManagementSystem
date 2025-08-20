@@ -2,7 +2,7 @@
 $pageTitle = 'Users Management';
 require_once 'config/database.php';
 require_once 'models/models.php';
-
+require_once 'includes/auth.php';
 // Only admins can access this page
 requireAdmin();
 
