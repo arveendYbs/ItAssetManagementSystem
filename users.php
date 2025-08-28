@@ -1,18 +1,25 @@
 <?php
+/**
+ * Users Management Page
+ * Location: users.php (root directory)
+ * Purpose: Admin-only page for managing system users
+ */
+
 $pageTitle = 'Users Management';
-require_once 'config/database.php';
-require_once 'models/models.php';
-require_once 'includes/auth.php';
-// Only admins can access this page
+require_once 'config/database.php';    // Database connection
+require_once 'includes/auth.php';      // Authentication functions
+require_once 'models/models.php';      // Data models
+
+// Only admins can access this page - this will redirect if not admin
 requireAdmin();
 
-
 $userModel = new User();
-$action = $_GET['action'] ?? 'list';
-$id = $_GET['id'] ?? null;
+$action = $_GET['action'] ?? 'list';  // Default action is 'list'
+$id = $_GET['id'] ?? null;            // Get user ID if provided
 
-// Handle form submissions
+// Handle form submissions (POST requests)
 if ($_POST) {
+    // Collect form data
     $data = [
         'username' => trim($_POST['username']),
         'email' => trim($_POST['email']),
@@ -26,6 +33,7 @@ if ($_POST) {
     if ($emailExists) {
         $error = 'Email address already exists.';
     } elseif ($action == 'create') {
+        // Creating new user - password is required
         if (empty($data['password'])) {
             $error = 'Password is required for new users.';
         } elseif ($userModel->create($data)) {
@@ -35,6 +43,7 @@ if ($_POST) {
             $error = 'Failed to create user.';
         }
     } elseif ($action == 'edit' && $id) {
+        // Editing existing user
         if ($userModel->update($id, $data)) {
             header('Location: users.php?success=updated');
             exit;
@@ -44,9 +53,9 @@ if ($_POST) {
     }
 }
 
-// Handle delete
+// Handle delete requests
 if ($action == 'delete' && $id && $_POST) {
-    // Prevent deleting the current user
+    // Prevent deleting the current user (prevent lockout)
     $currentUser = getCurrentUser();
     if ($id == $currentUser['id']) {
         header('Location: users.php?error=cannot_delete_self');
@@ -72,6 +81,7 @@ if (($action == 'edit' || $action == 'view') && $id) {
     }
 }
 
+// Start output buffering to capture content
 ob_start();
 ?>
 
@@ -111,7 +121,7 @@ ob_start();
 <?php endif; ?>
 
 <?php if ($action == 'list'): ?>
-    <!-- Search -->
+    <!-- Search Form -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3">
@@ -133,16 +143,17 @@ ob_start();
         </div>
     </div>
 
-    <!-- Users List -->
+    <!-- Users List Table -->
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover">
                     <thead class="table-dark">
                         <tr>
-                            <th>Username</th>
+                            <th>Name</th>
                             <th>Email</th>
                             <th>Role</th>
+                            <th>Status</th>
                             <th>Created</th>
                             <th>Actions</th>
                         </tr>
@@ -157,7 +168,7 @@ ob_start();
                         ?>
                         <tr <?php echo $usr['id'] == $currentUserId ? 'class="table-info"' : ''; ?>>
                             <td>
-                                <strong><?php echo htmlspecialchars($usr['username']); ?></strong>
+                                <strong><?php echo htmlspecialchars($usr['name']); ?></strong>
                                 <?php if ($usr['id'] == $currentUserId): ?>
                                     <span class="badge bg-primary ms-2">You</span>
                                 <?php endif; ?>
@@ -168,6 +179,13 @@ ob_start();
                                 $roleColor = $usr['role'] == 'Admin' ? 'danger' : 'secondary';
                                 ?>
                                 <span class="badge bg-<?php echo $roleColor; ?>"><?php echo htmlspecialchars($usr['role']); ?></span>
+                            </td>
+                            <td>
+                                <?php if ($usr['is_active']): ?>
+                                    <span class="badge bg-success">Active</span>
+                                <?php else: ?>
+                                    <span class="badge bg-warning">Inactive</span>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo date('M j, Y', strtotime($usr['created_at'])); ?></td>
                             <td class="table-actions">
@@ -181,10 +199,17 @@ ob_start();
                                         <i class="bi bi-pencil"></i>
                                     </a>
                                     <?php if ($usr['id'] != $currentUserId): ?>
-                                    <button type="button" class="btn btn-outline-danger" 
-                                            onclick="deleteUser(<?php echo $usr['id']; ?>)" title="Delete">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                        <?php if ($usr['is_active']): ?>
+                                            <button type="button" class="btn btn-outline-danger" 
+                                                    onclick="deactivateUser(<?php echo $usr['id']; ?>)" title="Deactivate">
+                                                <i class="bi bi-person-x"></i>
+                                            </button>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-outline-success" 
+                                                    onclick="reactivateUser(<?php echo $usr['id']; ?>)" title="Reactivate">
+                                                <i class="bi bi-person-check"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </div>
                             </td>
@@ -193,7 +218,7 @@ ob_start();
                         
                         <?php if(empty($users)): ?>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
+                            <td colspan="6" class="text-center text-muted py-4">
                                 <i class="bi bi-person-x display-1"></i><br>
                                 No users found
                             </td>
@@ -206,16 +231,16 @@ ob_start();
     </div>
 
 <?php elseif ($action == 'create' || $action == 'edit'): ?>
-    <!-- User Form -->
+    <!-- User Form (Create/Edit) -->
     <div class="card">
         <div class="card-body">
             <form method="POST">
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label for="username" class="form-label">Username *</label>
-                            <input type="text" class="form-control" id="username" name="username" 
-                                   value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" required>
+                            <label for="name" class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   value="<?php echo htmlspecialchars($user['name'] ?? ''); ?>" required>
                         </div>
                         
                         <div class="mb-3">
@@ -243,16 +268,29 @@ ob_start();
                                 <option value="">Select Role</option>
                                 <option value="Admin" <?php echo ($user['role'] ?? '') == 'Admin' ? 'selected' : ''; ?>>Admin</option>
                                 <option value="User" <?php echo ($user['role'] ?? '') == 'User' ? 'selected' : ''; ?>>User</option>
+                                <option value="Staff" <?php echo ($user['role'] ?? '') == 'Staff' ? 'selected' : ''; ?>>Staff</option>
+                                <option value="Manager" <?php echo ($user['role'] ?? '') == 'Manager' ? 'selected' : ''; ?>>Manager</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="is_active" class="form-label">Status *</label>
+                            <select class="form-select" id="is_active" name="is_active" required>
+                                <option value="1" <?php echo ($user['is_active'] ?? 1) == 1 ? 'selected' : ''; ?>>Active</option>
+                                <option value="0" <?php echo ($user['is_active'] ?? 1) == 0 ? 'selected' : ''; ?>>Inactive</option>
                             </select>
                         </div>
                     </div>
                 </div>
                 
+                <!-- Role Permissions Info -->
                 <div class="alert alert-info">
                     <h6><i class="bi bi-info-circle"></i> Role Permissions:</h6>
                     <ul class="mb-0">
                         <li><strong>Admin:</strong> Full access to all modules including user management</li>
                         <li><strong>User:</strong> Can manage assets and employees only</li>
+                        <li><strong>Staff:</strong> Limited access to view and basic operations</li>
+                        <li><strong>Manager:</strong> Enhanced access for department management</li>
                     </ul>
                 </div>
                 
@@ -269,7 +307,7 @@ ob_start();
     </div>
 
 <?php elseif ($action == 'view'): ?>
-    <!-- User View -->
+    <!-- User View (Read-only) -->
     <div class="card">
         <div class="card-header">
             <h5 class="mb-0">User Details</h5>
@@ -304,9 +342,16 @@ ob_start();
                             <td class="fw-bold">Created:</td>
                             <td><?php echo date('M j, Y g:i A', strtotime($user['created_at'])); ?></td>
                         </tr>
+                        <?php if (isset($user['updated_at']) && $user['updated_at']): ?>
+                        <tr>
+                            <td class="fw-bold">Last Updated:</td>
+                            <td><?php echo date('M j, Y g:i A', strtotime($user['updated_at'])); ?></td>
+                        </tr>
+                        <?php endif; ?>
                     </table>
                 </div>
                 
+                <!-- Role Permissions Display -->
                 <div class="col-md-6">
                     <div class="card bg-light">
                         <div class="card-header">
@@ -320,6 +365,22 @@ ob_start();
                                 <li><i class="bi bi-check-circle text-success"></i> Manage Users</li>
                                 <li><i class="bi bi-check-circle text-success"></i> View Reports</li>
                                 <li><i class="bi bi-check-circle text-success"></i> Export Data</li>
+                            </ul>
+                            <?php elseif ($user['role'] == 'Manager'): ?>
+                            <ul class="list-unstyled mb-0">
+                                <li><i class="bi bi-check-circle text-success"></i> Manage Assets</li>
+                                <li><i class="bi bi-check-circle text-success"></i> Manage Employees</li>
+                                <li><i class="bi bi-x-circle text-danger"></i> Manage Users</li>
+                                <li><i class="bi bi-check-circle text-success"></i> View Reports</li>
+                                <li><i class="bi bi-check-circle text-success"></i> Export Data</li>
+                            </ul>
+                            <?php elseif ($user['role'] == 'Staff'): ?>
+                            <ul class="list-unstyled mb-0">
+                                <li><i class="bi bi-check-circle text-success"></i> View Assets</li>
+                                <li><i class="bi bi-check-circle text-success"></i> View Employees</li>
+                                <li><i class="bi bi-x-circle text-danger"></i> Manage Users</li>
+                                <li><i class="bi bi-check-circle text-success"></i> View Reports</li>
+                                <li><i class="bi bi-x-circle text-danger"></i> Export Data</li>
                             </ul>
                             <?php else: ?>
                             <ul class="list-unstyled mb-0">
@@ -344,9 +405,15 @@ ob_start();
                         <i class="bi bi-pencil"></i> Edit User
                     </a>
                     <?php if ($user['id'] != getCurrentUser()['id']): ?>
-                    <button type="button" class="btn btn-danger" onclick="deleteUser(<?php echo $user['id']; ?>)">
-                        <i class="bi bi-trash"></i> Delete User
-                    </button>
+                        <?php if ($user['is_active']): ?>
+                            <button type="button" class="btn btn-warning" onclick="deactivateUser(<?php echo $user['id']; ?>)">
+                                <i class="bi bi-person-x"></i> Deactivate User
+                            </button>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-success" onclick="reactivateUser(<?php echo $user['id']; ?>)">
+                                <i class="bi bi-person-check"></i> Reactivate User
+                            </button>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -354,21 +421,41 @@ ob_start();
     </div>
 <?php endif; ?>
 
-<!-- Delete Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1">
+<!-- Deactivate/Reactivate Modals -->
+<div class="modal fade" id="deactivateModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirm Delete</h5>
+                <h5 class="modal-title">Confirm Deactivation</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                Are you sure you want to delete this user? This action cannot be undone.
+                Are you sure you want to deactivate this user? They will not be able to log in until reactivated.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="POST" style="display: inline;">
-                    <button type="submit" class="btn btn-danger">Delete</button>
+                <form id="deactivateForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-warning">Deactivate</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="reactivateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Reactivation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to reactivate this user? They will be able to log in again.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="reactivateForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-success">Reactivate</button>
                 </form>
             </div>
         </div>
@@ -376,17 +463,31 @@ ob_start();
 </div>
 
 <?php
+// Capture the output and assign to $content variable
 $content = ob_get_clean();
 
+// JavaScript for deactivate/reactivate confirmation
 $additionalJs = "
 <script>
+function deactivateUser(id) {
+    const deactivateModal = new bootstrap.Modal(document.getElementById('deactivateModal'));
+    document.getElementById('deactivateForm').action = 'users.php?action=delete&id=' + id;
+    deactivateModal.show();
+}
+
+function reactivateUser(id) {
+    const reactivateModal = new bootstrap.Modal(document.getElementById('reactivateModal'));
+    document.getElementById('reactivateForm').action = 'users.php?action=reactivate&id=' + id;
+    reactivateModal.show();
+}
+
+// Legacy function for backward compatibility
 function deleteUser(id) {
-    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    document.getElementById('deleteForm').action = 'users.php?action=delete&id=' + id;
-    deleteModal.show();
+    deactivateUser(id);
 }
 </script>
 ";
 
+// Include the main layout template
 require_once 'includes/layout.php';
 ?>

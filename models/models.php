@@ -19,15 +19,16 @@ class Asset {
                 WHERE 1=1";
         
         $params = [];
-        
+        //add device type filter 
         if (!empty($search)) {
-            $sql .= " AND (a.serial_number LIKE ? OR a.model LIKE ? OR cu.name LIKE ?)";
+            $sql .= " AND (a.serial_number LIKE ? a.asset_tag LIKE ? OR a.model LIKE ? OR cu.name LIKE ?)";
             $searchParam = "%$search%";
             $params[] = $searchParam;
             $params[] = $searchParam;
             $params[] = $searchParam;
+            $params[] = $searchParam;
         }
-        
+        // add status filter
         if (!empty($filter['device_type'])) {
             $sql .= " AND a.device_type = ?";
             $params[] = $filter['device_type'];
@@ -56,24 +57,35 @@ class Asset {
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
-    
+    // create asset
     public function create($data) {
-        $sql = "INSERT INTO assets (serial_number, model, device_type, site, purchased_by, 
+        $sql = "INSERT INTO assets (serial_number, asset_tag, model, device_type, site, purchased_by, 
                                    current_user_id, previous_user_id, license, status, ram, os, 
                                    purchase_date, warranty_expiry, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
-            $data['serial_number'], $data['model'], $data['device_type'], $data['site'],
-            $data['purchased_by'], $data['current_user_id'], $data['previous_user_id'],
-            $data['license'], $data['status'], $data['ram'], $data['os'],
-            $data['purchase_date'], $data['warranty_expiry'], $data['notes']
+            $data['serial_number'], 
+            $data['asset_tag'],
+            $data['model'], 
+            $data['device_type'], 
+            $data['site'],
+            $data['purchased_by'], 
+            $data['current_user_id'], 
+            $data['previous_user_id'],
+            $data['license'], 
+            $data['status'], 
+            $data['ram'], 
+            $data['os'],
+            $data['purchase_date'], 
+            $data['warranty_expiry'], 
+            $data['notes']
         ]);
     }
-    
+    //update asset
     public function update($id, $data) {
-        $sql = "UPDATE assets SET serial_number=?, model=?, device_type=?, site=?, 
+        $sql = "UPDATE assets SET serial_number=?, asset_tag=?, model=?, device_type=?, site=?, 
                                  purchased_by=?, current_user_id=?, previous_user_id=?, 
                                  license=?, status=?, ram=?, os=?, purchase_date=?, 
                                  warranty_expiry=?, notes=?, updated_at=NOW()
@@ -81,10 +93,22 @@ class Asset {
         
         $stmt = $this->db->prepare($sql);
         return $stmt->execute([
-            $data['serial_number'], $data['model'], $data['device_type'], $data['site'],
-            $data['purchased_by'], $data['current_user_id'], $data['previous_user_id'],
-            $data['license'], $data['status'], $data['ram'], $data['os'],
-            $data['purchase_date'], $data['warranty_expiry'], $data['notes'], $id
+            $data['serial_number'], 
+            $data['asset_tag'],
+            $data['model'], 
+            $data['device_type'], 
+            $data['site'],
+            $data['purchased_by'], 
+            $data['current_user_id'], 
+            $data['previous_user_id'],
+            $data['license'], 
+            $data['status'], 
+            $data['ram'], 
+            $data['os'],
+            $data['purchase_date'], 
+            $data['warranty_expiry'], 
+            $data['notes'],
+            $id
         ]);
     }
     
@@ -92,7 +116,7 @@ class Asset {
         $stmt = $this->db->prepare("DELETE FROM assets WHERE id = ?");
         return $stmt->execute([$id]);
     }
-    
+    //assets count
     public function getStats() {
         // Total assets
         $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM assets");
@@ -114,6 +138,24 @@ class Asset {
             'by_type' => $byType,
             'by_status' => $byStatus
         ];
+        $stats = [];
+
+          // Total users
+        $stmt = $this->db->prepare("SELECT COUNT(*) as total FROM users");
+        $stmt->execute();
+        $stats['total'] = $stmt->fetch()['total'];
+        
+        // Active users
+        $stmt = $this->db->prepare("SELECT COUNT(*) as active FROM users WHERE is_active = 1");
+        $stmt->execute();
+        $stats['active'] = $stmt->fetch()['active'];
+        
+        // By role
+        $stmt = $this->db->prepare("SELECT role, COUNT(*) as count FROM users WHERE is_active = 1 GROUP BY role");
+        $stmt->execute();
+        $stats['by_role'] = $stmt->fetchAll();
+        
+        return $stats;
     }
 }
 
@@ -154,12 +196,21 @@ class Employee {
     
     public function create($data) {
         $stmt = $this->db->prepare("INSERT INTO employees (name, department, company, email) VALUES (?, ?, ?, ?)");
-        return $stmt->execute([$data['name'], $data['department'], $data['company'], $data['email']]);
+        return $stmt->execute([
+            $data['name'], 
+            $data['department'], 
+            $data['company'], 
+            $data['email']]);
     }
     
     public function update($id, $data) {
         $stmt = $this->db->prepare("UPDATE employees SET name=?, department=?, company=?, email=?, updated_at=NOW() WHERE id=?");
-        return $stmt->execute([$data['name'], $data['department'], $data['company'], $data['email'], $id]);
+        return $stmt->execute([
+            $data['name'], 
+            $data['department'], 
+            $data['company'], 
+            $data['email'], 
+            $id]);
     }
     
     public function delete($id) {
@@ -184,21 +235,21 @@ class User {
     private $db;
     
     public function __construct() {
-        $this->db = getDB();
+        $this->db = getAuthDB(); // use it request system db
     }
     
     public function getAll($search = '') {
-        $sql = "SELECT id, username, email, role, created_at FROM users WHERE 1=1";
+        $sql = "SELECT id, name, email, role, is_active, created_at FROM users WHERE 1=1";
         $params = [];
         
         if (!empty($search)) {
-            $sql .= " AND (username LIKE ? OR email LIKE ?)";
+            $sql .= " AND (name LIKE ? OR email LIKE ?)";
             $searchParam = "%$search%";
             $params[] = $searchParam;
             $params[] = $searchParam;
         }
         
-        $sql .= " ORDER BY username ASC";
+        $sql .= " ORDER BY name ASC";
         
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
@@ -206,30 +257,56 @@ class User {
     }
     
     public function getById($id) {
-        $stmt = $this->db->prepare("SELECT id, username, email, role, created_at FROM users WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT id, name, email, role, is_active, created_at FROM users WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch();
     }
     
     public function create($data) {
+        // hash the password
         $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
-        $stmt = $this->db->prepare("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)");
-        return $stmt->execute([$data['username'], $data['email'], $hashedPassword, $data['role']]);
+        $stmt = $this->db->prepare("INSERT INTO users (name, email, password, role, is_active) VALUES (?, ?, ?, ?, ?)");
+        return $stmt->execute([
+        $data['name'], 
+        $data['email'], 
+        $hashedPassword, 
+        $data['role'],
+        $data['is_active'] ?? 1
+        ]);
     }
-    
+    // update existing user
     public function update($id, $data) {
         if (!empty($data['password'])) {
             $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
-            $stmt = $this->db->prepare("UPDATE users SET username=?, email=?, password=?, role=?, updated_at=NOW() WHERE id=?");
-            return $stmt->execute([$data['username'], $data['email'], $hashedPassword, $data['role'], $id]);
+            // hash new password
+            $stmt = $this->db->prepare("UPDATE users SET name=?, email=?, password=?, role=?, is_active=?, updated_at=NOW() WHERE id=?");
+            return $stmt->execute([
+                $data['name'], 
+                $data['email'], 
+                $hashedPassword, 
+                $data['role'], 
+                $data['is_active'],
+                $id]);
+                // update everything except password
         } else {
-            $stmt = $this->db->prepare("UPDATE users SET username=?, email=?, role=?, updated_at=NOW() WHERE id=?");
-            return $stmt->execute([$data['username'], $data['email'], $data['role'], $id]);
+            $stmt = $this->db->prepare("UPDATE users SET name=?, email=?, role=?, is_active=?, updated_at=NOW() WHERE id=?");
+            return $stmt->execute([
+                $data['name'], 
+                $data['email'], 
+                $data['role'], 
+                $data['is_active'],
+                $id]);
         }
     }
     
     public function delete($id) {
         $stmt = $this->db->prepare("DELETE FROM users WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+
+    //reactivate user
+    public function reactivate($id) {
+        $stmt = $this->db->prepare("UPDATE users SET is_active = 1, updated_at = NOW() WHERE id = ?");
         return $stmt->execute([$id]);
     }
     

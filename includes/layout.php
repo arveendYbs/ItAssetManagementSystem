@@ -156,6 +156,8 @@ $currentUser = getCurrentUser();
                         case 'created': echo 'Record created successfully!'; break;
                         case 'updated': echo 'Record updated successfully!'; break;
                         case 'deleted': echo 'Record deleted successfully!'; break;
+                        case 'deactivated': echo 'User deactivated successfully!'; break;
+                        case 'reactivated': echo 'User reactivated successfully!'; break;
                         default: echo 'Operation completed successfully!';
                     }
                     ?>
@@ -171,6 +173,8 @@ $currentUser = getCurrentUser();
                         case 'not_found': echo 'Record not found!'; break;
                         case 'delete_failed': echo 'Cannot delete record. It may be referenced by other records.'; break;
                         case 'email_exists': echo 'Email already exists!'; break;
+                         case 'cannot_delete_self': echo 'You cannot delete/deactivate your own account!'; break;
+                        case 'reactivate_failed': echo 'Failed to reactivate user!'; break;
                         default: echo 'An error occurred. Please try again.';
                     }
                     ?>

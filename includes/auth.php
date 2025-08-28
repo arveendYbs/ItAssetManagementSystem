@@ -10,18 +10,18 @@ class Auth {
     private $db;
     
     public function __construct() {
-        $this->db = getDB();
+        $this->db = getAuthDB(); // use the auth db from it req system
     }
     
     public function login($email, $password) {
         try {
-            $stmt = $this->db->prepare("SELECT id, username, email, password, role FROM users WHERE email = ?");
+            $stmt = $this->db->prepare("SELECT id, name, email, password, role FROM users WHERE email = ? AND is_active = 1 LIMIT 1");
             $stmt->execute([$email]);
             
             if ($user = $stmt->fetch()) {
                 if (password_verify($password, $user['password'])) {
                     $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['username'] = $user['username'];
+                    $_SESSION['username'] = $user['name'];
                     $_SESSION['email'] = $user['email'];
                     $_SESSION['role'] = $user['role'];
                     $_SESSION['logged_in'] = true;
