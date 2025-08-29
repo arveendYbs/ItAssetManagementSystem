@@ -1,3 +1,9 @@
+
+
+
+
+
+
 <?php
 $pageTitle = 'Assets Management';
 require_once 'config/database.php';
@@ -182,7 +188,9 @@ ob_start();
                         foreach($assets as $asset_item):
                         ?>
                         <tr>
-                            <td><strong><?php echo htmlspecialchars($asset_item['asset_tag']); ?></strong></td>
+                            <td>
+                                <span class="badge bg-primary"><?php echo htmlspecialchars($asset_item['asset_tag'] ?: 'N/A'); ?></span>
+                            </td>
                             <td><strong><?php echo htmlspecialchars($asset_item['serial_number']); ?></strong></td>
                             <td><?php echo htmlspecialchars($asset_item['model']); ?></td>
                             <td>
@@ -245,16 +253,36 @@ ob_start();
             <form method="POST">
                 <div class="row">
                     <div class="col-md-6">
+                        <div class="row">
+                    <div class="col-md-6">
                         <div class="mb-3">
-                            <label for="asset_tag" class="form-label">Serial Number *</label>
+                            <label for="asset_tag" class="form-label">Asset Tag *</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="asset_tag" name="asset_tag" 
+                                       value="<?php echo htmlspecialchars($asset['asset_tag'] ?? ''); ?>" 
+                                       required placeholder="e.g., PC001, LAPTOP001">
+                                <?php if ($action == 'create'): ?>
+                                <button class="btn btn-outline-secondary" type="button" id="generateTagBtn" 
+                                        title="Generate suggested asset tag">
+                                    <i class="bi bi-magic"></i>
+                                </button>
+                                <?php endif; ?>
+                            </div>
+                            <div class="form-text">
+                                Internal company asset identification code
+                                <?php if ($action == 'create'): ?>
+                                <br><small class="text-info">💡 Select device type first, then click the magic button for auto-suggestion</small>
+                                <?php endif; ?>
+                            </div>
+                            <div id="assetTagFeedback" class="form-text"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="serial_number" class="form-label">Serial Number *</label>
                             <input type="text" class="form-control" id="serial_number" name="serial_number" 
                                    value="<?php echo htmlspecialchars($asset['serial_number'] ?? ''); ?>" required>
                         </div>
-                        <div class="mb-3">
-                            <label for="serial_number" class="form-label">Asset Tag *</label>
-                            <input type="text" class="form-control" id="asset_tag" name="asset_tag" 
-                                   value="<?php echo htmlspecialchars($asset['asset_tag'] ?? ''); ?>" required>
-                        </div>
+                        
                         
                         <div class="mb-3">
                             <label for="model" class="form-label">Model</label>
@@ -398,8 +426,10 @@ ob_start();
                     <table class="table table-borderless">
                         <tr>
                             <td class="fw-bold">Asset Tag:</td>
-                            <td><?php echo htmlspecialchars($asset['asset_tag'] ?: 'Not Assigned'); ?></td>
-                        </tr>s
+                            <td>
+                                <span class="badge bg-primary"><?php echo htmlspecialchars($asset['asset_tag'] ?: 'Not assigned'); ?></span>
+                            </td>
+                        </tr>
                         <tr>
                             <td class="fw-bold">Serial Number:</td>
                             <td><?php echo htmlspecialchars($asset['serial_number']); ?></td>
@@ -581,7 +611,16 @@ document.addEventListener('DOMContentLoaded', function() {
             })
         })
         .then(response => response.json())
-       
+        .then(data => {
+            if (data.success) {
+                assetTagInput.value = data.suggested_tag;
+                showFeedback('Suggested: ' + data.suggested_tag, 'success');
+                assetTagInput.focus();
+                assetTagInput.select();
+            } else {
+                showFeedback('Failed to generate suggestion', 'danger');
+            }
+        })
         .catch(error => {
             console.error('Error:', error);
             showFeedback('Network error occurred', 'danger');
