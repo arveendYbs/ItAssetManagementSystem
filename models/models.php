@@ -10,6 +10,7 @@ class Asset {
     }
     
     public function getAll($search = '', $filter = []) {
+        //base sql with joins to get current and prev user names
         $sql = "SELECT a.*, 
                        cu.name as current_user_name,
                        pu.name as previous_user_name
@@ -24,7 +25,7 @@ class Asset {
             $sql .= " AND (a.serial_number LIKE ? a.asset_tag LIKE ? OR a.model LIKE ? OR cu.name LIKE ?)";
             $searchParam = "%$search%";
             $params[] = $searchParam;
-            $params[] = $searchParam;
+            $params[] = $searchParam; // search with asset tag
             $params[] = $searchParam;
             $params[] = $searchParam;
         }
@@ -116,6 +117,53 @@ class Asset {
         $stmt = $this->db->prepare("DELETE FROM assets WHERE id = ?");
         return $stmt->execute([$id]);
     }
+
+    public function getNextAssetTag($deviceType) {
+        $prefixes = [
+            'Laptop','Desktop' => 'OFM-PC', 
+            'Monitor' => 'MON',
+            'Projector' => 'PROJ',
+            'Tablet' => 'TAB',
+            'Phone' => 'PH',
+            'Server' => 'SRV',
+            'Printer' => 'PRINTER',
+            'Mouse' => 'M',
+            'Other' => 'OT'
+
+            
+        ];
+        $prefix = $prefixes[$deviceType] ?? 'AST';
+
+        //find the highest number for this prefixes
+        $stmt = $this->db->prepare("SELECT asset_tag FROM assets WHERE asset_tag LIKE ? ORDER BY asset_tag DESC LIMIT 1");
+        $stmt->execute([$prefix . '%']);
+        $lastTag = $stmt->fetch();
+
+        if ($lastTag) {
+            //extract number from the last tag
+            $number = (int) substr($lastTag['asset_tag'], strlen($prefix));
+            $nextNumber = $number + 1;
+
+        } else {
+            $nextNumber = 1;
+        }
+        //return in formatted tag
+        return $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function isAssetTagAvailable($assetTag, $excludeId = null) {
+        $sql = "SELECT COUNT(*) as count FROM assets WHERE asset_tag = ?";
+        $params = [$assetTag];
+
+        if ($excludeId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeId;
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetch()['count'] == 0;
+    }
+    
     //assets count
     public function getStats() {
         // Total assets

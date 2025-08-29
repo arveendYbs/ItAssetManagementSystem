@@ -11,6 +11,7 @@ $id = $_GET['id'] ?? null;
 // Handle form submissions
 if ($_POST) {
     $data = [
+        'asset_tag' => trim($_POST['asset_tag']),
         'serial_number' => trim($_POST['serial_number']),
         'model' => trim($_POST['model']),
         'device_type' => $_POST['device_type'],
@@ -124,7 +125,9 @@ ob_start();
                         <option value="Phone" <?php echo ($_GET['device_type'] ?? '') == 'Phone' ? 'selected' : ''; ?>>Phone</option>
                         <option value="Server" <?php echo ($_GET['device_type'] ?? '') == 'Server' ? 'selected' : ''; ?>>Server</option>
                         <option value="Printer" <?php echo ($_GET['device_type'] ?? '') == 'Printer' ? 'selected' : ''; ?>>Printer</option>
+                        <option value="Mouse" <?php echo ($_GET['device_type'] ?? '') == 'Mouse' ? 'selected' : ''; ?>>Mouse</option>
                         <option value="Other" <?php echo ($_GET['device_type'] ?? '') == 'Other' ? 'selected' : ''; ?>>Other</option>
+
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -157,6 +160,7 @@ ob_start();
                 <table class="table table-striped table-hover">
                     <thead class="table-dark">
                         <tr>
+                            <th>Asset Tag</th>
                             <th>Serial Number</th>
                             <th>Model</th>
                             <th>Device Type</th>
@@ -178,6 +182,7 @@ ob_start();
                         foreach($assets as $asset_item):
                         ?>
                         <tr>
+                            <td><strong><?php echo htmlspecialchars($asset_item['asset_tag']); ?></strong></td>
                             <td><strong><?php echo htmlspecialchars($asset_item['serial_number']); ?></strong></td>
                             <td><?php echo htmlspecialchars($asset_item['model']); ?></td>
                             <td>
@@ -241,9 +246,14 @@ ob_start();
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
-                            <label for="serial_number" class="form-label">Serial Number *</label>
+                            <label for="asset_tag" class="form-label">Serial Number *</label>
                             <input type="text" class="form-control" id="serial_number" name="serial_number" 
                                    value="<?php echo htmlspecialchars($asset['serial_number'] ?? ''); ?>" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="serial_number" class="form-label">Asset Tag *</label>
+                            <input type="text" class="form-control" id="asset_tag" name="asset_tag" 
+                                   value="<?php echo htmlspecialchars($asset['asset_tag'] ?? ''); ?>" required>
                         </div>
                         
                         <div class="mb-3">
@@ -264,6 +274,7 @@ ob_start();
                                 <option value="Phone" <?php echo ($asset['device_type'] ?? '') == 'Phone' ? 'selected' : ''; ?>>Phone</option>
                                 <option value="Server" <?php echo ($asset['device_type'] ?? '') == 'Server' ? 'selected' : ''; ?>>Server</option>
                                 <option value="Printer" <?php echo ($asset['device_type'] ?? '') == 'Printer' ? 'selected' : ''; ?>>Printer</option>
+                                <option value="Mouse" <?php echo ($asset['device_type'] ?? '') == 'Mouse' ? 'selected' : ''; ?>>Mouse</option>
                                 <option value="Other" <?php echo ($asset['device_type'] ?? '') == 'Other' ? 'selected' : ''; ?>>Other</option>
                             </select>
                         </div>
@@ -385,6 +396,10 @@ ob_start();
             <div class="row">
                 <div class="col-md-6">
                     <table class="table table-borderless">
+                        <tr>
+                            <td class="fw-bold">Asset Tag:</td>
+                            <td><?php echo htmlspecialchars($asset['asset_tag'] ?: 'Not Assigned'); ?></td>
+                        </tr>s
                         <tr>
                             <td class="fw-bold">Serial Number:</td>
                             <td><?php echo htmlspecialchars($asset['serial_number']); ?></td>
@@ -516,12 +531,125 @@ $content = ob_get_clean();
 
 $additionalJs = "
 <script>
+// Auto-suggest asset tag functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const deviceTypeSelect = document.getElementById('device_type');
+    const assetTagInput = document.getElementById('asset_tag');
+    const generateTagBtn = document.getElementById('generateTagBtn');
+    const assetTagFeedback = document.getElementById('assetTagFeedback');
+    
+    // Auto-suggest when device type changes (only for create mode)
+    if (deviceTypeSelect && generateTagBtn) {
+        deviceTypeSelect.addEventListener('change', function() {
+            if (this.value && !assetTagInput.value) {
+                generateAssetTag();
+            }
+        });
+        
+        // Manual generate button
+        generateTagBtn.addEventListener('click', generateAssetTag);
+    }
+    
+    // Real-time availability check
+    if (assetTagInput) {
+        assetTagInput.addEventListener('input', function() {
+            clearTimeout(this.checkTimeout);
+            this.checkTimeout = setTimeout(() => {
+                checkAssetTagAvailability(this.value);
+            }, 500);
+        });
+    }
+    
+    function generateAssetTag() {
+        const deviceType = deviceTypeSelect.value;
+        if (!deviceType) {
+            showFeedback('Please select a device type first', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        generateTagBtn.innerHTML = '<i class=\"bi bi-arrow-clockwise spin\"></i>';
+        generateTagBtn.disabled = true;
+        
+        fetch('get_next_asset_tag.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                device_type: deviceType
+            })
+        })
+        .then(response => response.json())
+       
+        .catch(error => {
+            console.error('Error:', error);
+            showFeedback('Network error occurred', 'danger');
+        })
+        .finally(() => {
+            generateTagBtn.innerHTML = '<i class=\"bi bi-magic\"></i>';
+            generateTagBtn.disabled = false;
+        });
+    }
+    
+    function checkAssetTagAvailability(assetTag) {
+        if (!assetTag || assetTag.length < 2) {
+            showFeedback('', '');
+            return;
+        }
+        
+        // Check if editing existing asset
+        const isEdit = window.location.search.includes('action=edit');
+        const assetId = new URLSearchParams(window.location.search).get('id');
+        
+        fetch('check_asset_tag.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                asset_tag: assetTag,
+                exclude_id: isEdit ? assetId : null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.available) {
+                showFeedback('✓ Available', 'success');
+            } else {
+                showFeedback('✗ Already taken', 'danger');
+            }
+        })
+        .catch(error => {
+            showFeedback('', '');
+        });
+    }
+    
+    function showFeedback(message, type) {
+        assetTagFeedback.className = 'form-text';
+        if (type) {
+            assetTagFeedback.classList.add('text-' + type);
+        }
+        assetTagFeedback.textContent = message;
+    }
+});
+
 function deleteAsset(id) {
     const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
     document.getElementById('deleteForm').action = 'assets.php?action=delete&id=' + id;
     deleteModal.show();
 }
 </script>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.spin {
+    animation: spin 1s linear infinite;
+}
+</style>
 ";
 
 require_once 'includes/layout.php';

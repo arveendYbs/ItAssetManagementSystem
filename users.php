@@ -21,7 +21,7 @@ $id = $_GET['id'] ?? null;            // Get user ID if provided
 if ($_POST) {
     // Collect form data
     $data = [
-        'username' => trim($_POST['username']),
+        'name' => trim($_POST['name']),
         'email' => trim($_POST['email']),
         'password' => $_POST['password'] ?? '',
         'role' => $_POST['role']
