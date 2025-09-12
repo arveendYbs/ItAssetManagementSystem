@@ -16,6 +16,9 @@ ob_start();
             <a href="assets.php?action=create" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-plus-circle"></i> Add Asset
             </a>
+            <a href="import_assets.php" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-upload"></i> Import Assets
+            </a>
         </div>
     </div>
 </div>

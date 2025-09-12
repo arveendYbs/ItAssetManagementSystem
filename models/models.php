@@ -120,7 +120,8 @@ class Asset {
 
     public function getNextAssetTag($deviceType) {
         $prefixes = [
-            'Laptop','Desktop' => 'OFM-PC', 
+            'Laptop' => 'OFM-PC',
+            'Desktop' => 'OFM-PC', 
             'Monitor' => 'MON',
             'Projector' => 'PROJ',
             'Tablet' => 'TAB',

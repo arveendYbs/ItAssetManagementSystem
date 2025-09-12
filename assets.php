@@ -94,6 +94,9 @@ ob_start();
             <a href="assets.php?action=create" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-circle"></i> Add Asset
             </a>
+            <a href="import_assets.php" class="btn btn-sm btn-success">
+                <i class="bi bi-upload"></i> Import Assets
+            </a>
             <a href="reports.php?export=assets" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-download"></i> Export CSV
             </a>
@@ -534,7 +537,6 @@ ob_start();
         </div>
     </div>
 <?php endif; ?>
-
 <!-- Delete Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
@@ -548,7 +550,8 @@ ob_start();
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteForm" method="POST" style="display: inline;">
+                <form id="deleteForm" method="POST" action="delete_asset.php" style="display: inline;">
+                    <input type="hidden" name="id" id="deleteId">
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
             </div>
@@ -556,12 +559,28 @@ ob_start();
     </div>
 </div>
 
+<script>
+// Attach ID dynamically when delete button is clicked
+function confirmDelete(id) {
+    document.getElementById('deleteId').value = id;
+    var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    deleteModal.show();
+}
+</script>
+
 <?php
 $content = ob_get_clean();
 
 $additionalJs = "
 <script>
 // Auto-suggest asset tag functionality
+
+function confirmDelete(id) {
+document.getElementById('deleteId').value = id;
+var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+deleteModal.show();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const deviceTypeSelect = document.getElementById('device_type');
     const assetTagInput = document.getElementById('asset_tag');

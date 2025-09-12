@@ -319,7 +319,7 @@ ob_start();
                         <tr>
                             <td class="fw-bold">Username:</td>
                             <td>
-                                <?php echo htmlspecialchars($user['username']); ?>
+                                <?php echo htmlspecialchars($user['name']); ?>
                                 <?php if ($user['id'] == getCurrentUser()['id']): ?>
                                     <span class="badge bg-primary ms-2">You</span>
                                 <?php endif; ?>
